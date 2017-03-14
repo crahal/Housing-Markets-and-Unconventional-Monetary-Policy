@@ -1,0 +1,1252 @@
+*****************************************************************************************
+cal 2007 1 12
+all 93
+data(for=xls,org=obs)
+****************************************************************************************
+* Declaration of variables - input for estimation                                      *
+****************************************************************************************
+comp cobs = 8                     ;* number of countries
+comp nvars = 5                    ;* number of variables
+comp nlags = 1                    ;* number of lags
+comp nsteps = 60                  ;* number of steps for impulse response analysis
+comp ndraws = 1000                ;* number of solutions that match the restrictions
+comp stdat = 2007:1               ;* start dataset
+comp start = 2007:10            ;* start of sample period
+comp end = 2014:9                 ;* end of sample period
+comp cors = 1                     ;* identification parameter (1=contemporaneous)
+comp bupp = 84                    ;* upper error band (percentile)
+comp blow = 16                    ;* lower error band (percentile)
+comp bmed = 50                    ;* impulse response percentile
+comp niters = 1                   ;* number of iterations SUR
+
+****************************
+* re-constructing the data *
+****************************
+
+dec vect[labels] countrylabels(cobs)
+
+COMPUTE [VECTOR[LABEL]] countrylabels = || 'Canada', 'Switzerland', 'Japan', 'Norway', 'Sweden', 'United Kingdom', 'United States', 'Euro Area'||
+COMPUTE [VECTOR[LABEL]] variablelabels = || 'gdpmonth', 'hpmonth', 'rinvmonth', 'mortmonth', 'tamonth'||
+COMPUTE [VECTOR[STRING]] country = || 'ca','ch','jp','no','se','uk','us','xm'||
+COMPUTE [VECTOR[STRING]] variable = || 'gdpmonth','hpmonth','rinvmonth','mortmonth','tamonth'||
+
+DO i = 1,%ROWS(country)
+   DO j = 1,%ROWS(variable)
+      COMPUTE series = variable(j) + country(i)
+      COMPUTE lseries = 'l' + series
+      SET %S(lseries) = 100*(LOG(%S(series)))
+   END DO j
+end do i
+
+set trend = t
+set xtrend = t*t
+
+****************************************************************************************
+****************************************************************************************
+
+******************************************************************
+* declaration of variables for estimation and storage of results *
+******************************************************************
+
+* Monte Carlo integration
+dec rect sxx svtr swish betaols betadraw
+dec symm sigmad
+dec rect[series] respca(nvars,nvars) respch(nvars,nvars) respjp(nvars,nvars) respno(nvars,nvars) respse(nvars,nvars) respuk(nvars,nvars) respus(nvars,nvars) respxm(nvars,nvars)
+	
+* decompositions' matrices for rotations
+comp Q1=Q2=Q3=Q4=Q5=Q6=Q7=Q8=Q9=Q10=%identity(nvars)
+
+* sign correlations : 5 shocks, 5 variables, 1 sign correlations = 25
+dec vect[series] coca(25) coch(25) cojp(25) cono(25) cose(25) couk(25) cous(25) coxm(25)
+
+* Storage of results
+
+dec vector[series] irca1(nsteps) irca2(nsteps) irca3(nsteps) irca4(nsteps) irca5(nsteps) 
+dec vector[series] irch1(nsteps) irch2(nsteps) irch3(nsteps) irch4(nsteps) irch5(nsteps) 
+dec vector[series] irjp1(nsteps) irjp2(nsteps) irjp3(nsteps) irjp4(nsteps) irjp5(nsteps) 
+dec vector[series] irno1(nsteps) irno2(nsteps) irno3(nsteps) irno4(nsteps) irno5(nsteps) 
+dec vector[series] irse1(nsteps) irse2(nsteps) irse3(nsteps) irse4(nsteps) irse5(nsteps) 
+dec vector[series] iruk1(nsteps) iruk2(nsteps) iruk3(nsteps) iruk4(nsteps) iruk5(nsteps) 
+dec vector[series] irus1(nsteps) irus2(nsteps) irus3(nsteps) irus4(nsteps) irus5(nsteps) 
+dec vector[series] irxm1(nsteps) irxm2(nsteps) irxm3(nsteps) irxm4(nsteps) irxm5(nsteps)
+*********************
+* Set-up of systems *
+*********************
+
+equation eqca1 lgdpmonthca
+# lgdpmonthca{1 to nlags} lhpmonthca{1 to nlags} lrinvmonthca{1 to nlags} mortmonthca{1 to nlags} ltamonthca{1 to nlags} constant
+equation eqca2 lhpmonthca
+# lgdpmonthca{1 to nlags} lhpmonthca{1 to nlags} lrinvmonthca{1 to nlags} mortmonthca{1 to nlags} ltamonthca{1 to nlags} constant
+equation eqca3 lrinvmonthca
+# lgdpmonthca{1 to nlags} lhpmonthca{1 to nlags} lrinvmonthca{1 to nlags} mortmonthca{1 to nlags} ltamonthca{1 to nlags} constant
+equation eqca4 mortmonthca
+# lgdpmonthca{1 to nlags} lhpmonthca{1 to nlags} lrinvmonthca{1 to nlags} mortmonthca{1 to nlags} ltamonthca{1 to nlags} constant
+equation eqca5 ltamonthca
+# lgdpmonthca{1 to nlags} lhpmonthca{1 to nlags} lrinvmonthca{1 to nlags} mortmonthca{1 to nlags} ltamonthca{1 to nlags} constant
+
+equation eqch1 lgdpmonthch
+# lgdpmonthch{1 to nlags} lhpmonthch{1 to nlags} lrinvmonthch{1 to nlags} mortmonthch{1 to nlags} ltamonthch{1 to nlags} constant
+equation eqch2 lhpmonthch
+# lgdpmonthch{1 to nlags} lhpmonthch{1 to nlags} lrinvmonthch{1 to nlags} mortmonthch{1 to nlags} ltamonthch{1 to nlags} constant
+equation eqch3 lrinvmonthch
+# lgdpmonthch{1 to nlags} lhpmonthch{1 to nlags} lrinvmonthch{1 to nlags} mortmonthch{1 to nlags} ltamonthch{1 to nlags} constant
+equation eqch4 mortmonthch
+# lgdpmonthch{1 to nlags} lhpmonthch{1 to nlags} lrinvmonthch{1 to nlags} mortmonthch{1 to nlags} ltamonthch{1 to nlags} constant
+equation eqch5 ltamonthch
+# lgdpmonthch{1 to nlags} lhpmonthch{1 to nlags} lrinvmonthch{1 to nlags} mortmonthch{1 to nlags} ltamonthch{1 to nlags} constant
+
+equation eqjp1 lgdpmonthjp
+# lgdpmonthjp{1 to nlags} lhpmonthjp{1 to nlags} lrinvmonthjp{1 to nlags} mortmonthjp{1 to nlags} ltamonthjp{1 to nlags} constant
+equation eqjp2 lhpmonthjp
+# lgdpmonthjp{1 to nlags} lhpmonthjp{1 to nlags} lrinvmonthjp{1 to nlags} mortmonthjp{1 to nlags} ltamonthjp{1 to nlags} constant
+equation eqjp3 lrinvmonthjp
+# lgdpmonthjp{1 to nlags} lhpmonthjp{1 to nlags} lrinvmonthjp{1 to nlags} mortmonthjp{1 to nlags} ltamonthjp{1 to nlags} constant
+equation eqjp4 mortmonthjp
+# lgdpmonthjp{1 to nlags} lhpmonthjp{1 to nlags} lrinvmonthjp{1 to nlags} mortmonthjp{1 to nlags} ltamonthjp{1 to nlags} constant
+equation eqjp5 ltamonthjp
+# lgdpmonthjp{1 to nlags} lhpmonthjp{1 to nlags} lrinvmonthjp{1 to nlags} mortmonthjp{1 to nlags} ltamonthjp{1 to nlags} constant
+
+equation eqno1 lgdpmonthno
+# lgdpmonthno{1 to nlags} lhpmonthno{1 to nlags} lrinvmonthno{1 to nlags} mortmonthno{1 to nlags} ltamonthno{1 to nlags} constant
+equation eqno2 lhpmonthno
+# lgdpmonthno{1 to nlags} lhpmonthno{1 to nlags} lrinvmonthno{1 to nlags} mortmonthno{1 to nlags} ltamonthno{1 to nlags} constant
+equation eqno3 lrinvmonthno
+# lgdpmonthno{1 to nlags} lhpmonthno{1 to nlags} lrinvmonthno{1 to nlags} mortmonthno{1 to nlags} ltamonthno{1 to nlags} constant
+equation eqno4 mortmonthno
+# lgdpmonthno{1 to nlags} lhpmonthno{1 to nlags} lrinvmonthno{1 to nlags} mortmonthno{1 to nlags} ltamonthno{1 to nlags} constant
+equation eqno5 ltamonthno
+# lgdpmonthno{1 to nlags} lhpmonthno{1 to nlags} lrinvmonthno{1 to nlags} mortmonthno{1 to nlags} ltamonthno{1 to nlags} constant
+
+equation eqse1 lgdpmonthse
+# lgdpmonthse{1 to nlags} lhpmonthse{1 to nlags} lrinvmonthse{1 to nlags} mortmonthse{1 to nlags} ltamonthse{1 to nlags} constant
+equation eqse2 lhpmonthse
+# lgdpmonthse{1 to nlags} lhpmonthse{1 to nlags} lrinvmonthse{1 to nlags} mortmonthse{1 to nlags} ltamonthse{1 to nlags} constant
+equation eqse3 lrinvmonthse
+# lgdpmonthse{1 to nlags} lhpmonthse{1 to nlags} lrinvmonthse{1 to nlags} mortmonthse{1 to nlags} ltamonthse{1 to nlags} constant
+equation eqse4 mortmonthse
+# lgdpmonthse{1 to nlags} lhpmonthse{1 to nlags} lrinvmonthse{1 to nlags} mortmonthse{1 to nlags} ltamonthse{1 to nlags} constant
+equation eqse5 ltamonthse
+# lgdpmonthse{1 to nlags} lhpmonthse{1 to nlags} lrinvmonthse{1 to nlags} mortmonthse{1 to nlags} ltamonthse{1 to nlags} constant
+
+equation equk1 lgdpmonthuk
+# lgdpmonthuk{1 to nlags} lhpmonthuk{1 to nlags} lrinvmonthuk{1 to nlags} mortmonthuk{1 to nlags} ltamonthuk{1 to nlags} constant
+equation equk2 lhpmonthuk
+# lgdpmonthuk{1 to nlags} lhpmonthuk{1 to nlags} lrinvmonthuk{1 to nlags} mortmonthuk{1 to nlags} ltamonthuk{1 to nlags} constant
+equation equk3 lrinvmonthuk
+# lgdpmonthuk{1 to nlags} lhpmonthuk{1 to nlags} lrinvmonthuk{1 to nlags} mortmonthuk{1 to nlags} ltamonthuk{1 to nlags} constant
+equation equk4 mortmonthuk
+# lgdpmonthuk{1 to nlags} lhpmonthuk{1 to nlags} lrinvmonthuk{1 to nlags} mortmonthuk{1 to nlags} ltamonthuk{1 to nlags} constant
+equation equk5 ltamonthuk
+# lgdpmonthuk{1 to nlags} lhpmonthuk{1 to nlags} lrinvmonthuk{1 to nlags} mortmonthuk{1 to nlags} ltamonthuk{1 to nlags} constant
+
+equation equs1 lgdpmonthus
+# lgdpmonthus{1 to nlags} lhpmonthus{1 to nlags} lrinvmonthus{1 to nlags} mortmonthus{1 to nlags} ltamonthus{1 to nlags} constant
+equation equs2 lhpmonthus
+# lgdpmonthus{1 to nlags} lhpmonthus{1 to nlags} lrinvmonthus{1 to nlags} mortmonthus{1 to nlags} ltamonthus{1 to nlags} constant
+equation equs3 lrinvmonthus
+# lgdpmonthus{1 to nlags} lhpmonthus{1 to nlags} lrinvmonthus{1 to nlags} mortmonthus{1 to nlags} ltamonthus{1 to nlags} constant
+equation equs4 mortmonthus
+# lgdpmonthus{1 to nlags} lhpmonthus{1 to nlags} lrinvmonthus{1 to nlags} mortmonthus{1 to nlags} ltamonthus{1 to nlags} constant
+equation equs5 ltamonthus
+# lgdpmonthus{1 to nlags} lhpmonthus{1 to nlags} lrinvmonthus{1 to nlags} mortmonthus{1 to nlags} ltamonthus{1 to nlags} constant
+
+equation eqxm1 lgdpmonthxm
+# lgdpmonthxm{1 to nlags} lhpmonthxm{1 to nlags} lrinvmonthxm{1 to nlags} mortmonthxm{1 to nlags} ltamonthxm{1 to nlags} constant
+equation eqxm2 lhpmonthxm
+# lgdpmonthxm{1 to nlags} lhpmonthxm{1 to nlags} lrinvmonthxm{1 to nlags} mortmonthxm{1 to nlags} ltamonthxm{1 to nlags} constant
+equation eqxm3 lrinvmonthxm
+# lgdpmonthxm{1 to nlags} lhpmonthxm{1 to nlags} lrinvmonthxm{1 to nlags} mortmonthxm{1 to nlags} ltamonthxm{1 to nlags} constant
+equation eqxm4 mortmonthxm
+# lgdpmonthxm{1 to nlags} lhpmonthxm{1 to nlags} lrinvmonthxm{1 to nlags} mortmonthxm{1 to nlags} ltamonthxm{1 to nlags} constant
+equation eqxm5 ltamonthxm
+# lgdpmonthxm{1 to nlags} lhpmonthxm{1 to nlags} lrinvmonthxm{1 to nlags} mortmonthxm{1 to nlags} ltamonthxm{1 to nlags} constant
+
+group surmodel1 eqca1 eqch1 eqjp1 eqno1 eqse1 equk1 equs1 eqxm1
+group surmodel2 eqca2 eqch2 eqjp2 eqno2 eqse2 equk2 equs2 eqxm2
+group surmodel3 eqca3 eqch3 eqjp3 eqno3 eqse3 equk3 equs3 eqxm3
+group surmodel4 eqca4 eqch4 eqjp4 eqno4 eqse4 equk4 equs4 eqxm4
+group surmodel5 eqca5 eqch5 eqjp5 eqno5 eqse5 equk5 equs5 eqxm5
+
+group surmodelca eqca1 eqca2 eqca3 eqca4 eqca5
+group surmodelch eqch1 eqch2 eqch3 eqch4 eqch5
+group surmodeljp eqjp1 eqjp2 eqjp3 eqjp4 eqjp5
+group surmodelno eqno1 eqno2 eqno3 eqno4 eqno5
+group surmodelse eqse1 eqse2 eqse3 eqse4 eqse5
+group surmodeluk equk1 equk2 equk3 equk4 equk5
+group surmodelus equs1 equs2 equs3 equs4 equs5
+group surmodelxm eqxm1 eqxm2 eqxm3 eqxm4 eqxm5
+
+sur(model=surmodel1,outsigma=vmat1,residuals=res1,noprint,nosigma) * start end
+sur(model=surmodel2,outsigma=vmat2,residuals=res2,noprint,nosigma) * start end
+sur(model=surmodel3,outsigma=vmat3,residuals=res3,noprint,nosigma) * start end
+sur(model=surmodel4,outsigma=vmat4,residuals=res4,noprint,nosigma) * start end
+sur(model=surmodel5,outsigma=vmat5,residuals=res5,noprint,nosigma) * start end
+
+*****************
+* Bootstrapping *
+*****************
+
+dec vec[series] udraws1(cobs) udraws2(cobs) udraws3(cobs) udraws4(cobs) udraws5(cobs)
+dec vec[series] sim1(cobs) sim2(cobs) sim3(cobs) sim4(cobs) sim5(cobs)
+
+equation eqbootca1 sim1(1)
+# sim1(1){1 to nlags} sim2(1){1 to nlags} sim3(1){1 to nlags} sim4(1){1 to nlags} sim5(1){1 to nlags} constant
+equation eqbootca2 sim2(1)
+# sim1(1){1 to nlags} sim2(1){1 to nlags} sim3(1){1 to nlags} sim4(1){1 to nlags} sim5(1){1 to nlags} constant
+equation eqbootca3 sim3(1)
+# sim1(1){1 to nlags} sim2(1){1 to nlags} sim3(1){1 to nlags} sim4(1){1 to nlags} sim5(1){1 to nlags} constant
+equation eqbootca4 sim4(1)
+# sim1(1){1 to nlags} sim2(1){1 to nlags} sim3(1){1 to nlags} sim4(1){1 to nlags} sim5(1){1 to nlags} constant
+equation eqbootca5 sim5(1)
+# sim1(1){1 to nlags} sim2(1){1 to nlags} sim3(1){1 to nlags} sim4(1){1 to nlags} sim5(1){1 to nlags} constant
+
+equation eqbootch1 sim1(2)
+# sim1(2){1 to nlags} sim2(2){1 to nlags} sim3(2){1 to nlags} sim4(2){1 to nlags} sim5(2){1 to nlags} constant
+equation eqbootch2 sim2(2)
+# sim1(2){1 to nlags} sim2(2){1 to nlags} sim3(2){1 to nlags} sim4(2){1 to nlags} sim5(2){1 to nlags} constant
+equation eqbootch3 sim3(2)
+# sim1(2){1 to nlags} sim2(2){1 to nlags} sim3(2){1 to nlags} sim4(2){1 to nlags} sim5(2){1 to nlags} constant
+equation eqbootch4 sim4(2)
+# sim1(2){1 to nlags} sim2(2){1 to nlags} sim3(2){1 to nlags} sim4(2){1 to nlags} sim5(2){1 to nlags} constant
+equation eqbootch5 sim5(2)
+# sim1(2){1 to nlags} sim2(2){1 to nlags} sim3(2){1 to nlags} sim4(2){1 to nlags} sim5(2){1 to nlags} constant
+
+equation eqbootjp1 sim1(3)
+# sim1(3){1 to nlags} sim2(3){1 to nlags} sim3(3){1 to nlags} sim4(3){1 to nlags} sim5(3){1 to nlags} constant
+equation eqbootjp2 sim2(3)
+# sim1(3){1 to nlags} sim2(3){1 to nlags} sim3(3){1 to nlags} sim4(3){1 to nlags} sim5(3){1 to nlags} constant
+equation eqbootjp3 sim3(3)
+# sim1(3){1 to nlags} sim2(3){1 to nlags} sim3(3){1 to nlags} sim4(3){1 to nlags} sim5(3){1 to nlags} constant
+equation eqbootjp4 sim4(3)
+# sim1(3){1 to nlags} sim2(3){1 to nlags} sim3(3){1 to nlags} sim4(3){1 to nlags} sim5(3){1 to nlags} constant
+equation eqbootjp5 sim5(3)
+# sim1(3){1 to nlags} sim2(3){1 to nlags} sim3(3){1 to nlags} sim4(3){1 to nlags} sim5(3){1 to nlags} constant
+
+equation eqbootno1 sim1(4)
+# sim1(4){1 to nlags} sim2(4){1 to nlags} sim3(4){1 to nlags} sim4(4){1 to nlags} sim5(4){1 to nlags} constant
+equation eqbootno2 sim2(4)
+# sim1(4){1 to nlags} sim2(4){1 to nlags} sim3(4){1 to nlags} sim4(4){1 to nlags} sim5(4){1 to nlags} constant
+equation eqbootno3 sim3(4)
+# sim1(4){1 to nlags} sim2(4){1 to nlags} sim3(4){1 to nlags} sim4(4){1 to nlags} sim5(4){1 to nlags} constant
+equation eqbootno4 sim4(4)
+# sim1(4){1 to nlags} sim2(4){1 to nlags} sim3(4){1 to nlags} sim4(4){1 to nlags} sim5(4){1 to nlags} constant
+equation eqbootno5 sim5(4)
+# sim1(4){1 to nlags} sim2(4){1 to nlags} sim3(4){1 to nlags} sim4(4){1 to nlags} sim5(4){1 to nlags} constant
+
+equation eqbootse1 sim1(5)
+# sim1(5){1 to nlags} sim2(5){1 to nlags} sim3(5){1 to nlags} sim4(5){1 to nlags} sim5(5){1 to nlags} constant
+equation eqbootse2 sim2(5)
+# sim1(5){1 to nlags} sim2(5){1 to nlags} sim3(5){1 to nlags} sim4(5){1 to nlags} sim5(5){1 to nlags} constant
+equation eqbootse3 sim3(5)
+# sim1(5){1 to nlags} sim2(5){1 to nlags} sim3(5){1 to nlags} sim4(5){1 to nlags} sim5(5){1 to nlags} constant
+equation eqbootse4 sim4(5)
+# sim1(5){1 to nlags} sim2(5){1 to nlags} sim3(5){1 to nlags} sim4(5){1 to nlags} sim5(5){1 to nlags} constant
+equation eqbootse5 sim5(5)
+# sim1(5){1 to nlags} sim2(5){1 to nlags} sim3(5){1 to nlags} sim4(5){1 to nlags} sim5(5){1 to nlags} constant
+
+equation eqbootuk1 sim1(6)
+# sim1(6){1 to nlags} sim2(6){1 to nlags} sim3(6){1 to nlags} sim4(6){1 to nlags} sim5(6){1 to nlags} constant
+equation eqbootuk2 sim2(6)
+# sim1(6){1 to nlags} sim2(6){1 to nlags} sim3(6){1 to nlags} sim4(6){1 to nlags} sim5(6){1 to nlags} constant
+equation eqbootuk3 sim3(6)
+# sim1(6){1 to nlags} sim2(6){1 to nlags} sim3(6){1 to nlags} sim4(6){1 to nlags} sim5(6){1 to nlags} constant
+equation eqbootuk4 sim4(6)
+# sim1(6){1 to nlags} sim2(6){1 to nlags} sim3(6){1 to nlags} sim4(6){1 to nlags} sim5(6){1 to nlags} constant
+equation eqbootuk5 sim5(6)
+# sim1(6){1 to nlags} sim2(6){1 to nlags} sim3(6){1 to nlags} sim4(6){1 to nlags} sim5(6){1 to nlags} constant
+
+equation eqbootus1 sim1(7)
+# sim1(7){1 to nlags} sim2(7){1 to nlags} sim3(7){1 to nlags} sim4(7){1 to nlags} sim5(7){1 to nlags} constant
+equation eqbootus2 sim2(7)
+# sim1(7){1 to nlags} sim2(7){1 to nlags} sim3(7){1 to nlags} sim4(7){1 to nlags} sim5(7){1 to nlags} constant
+equation eqbootus3 sim3(7)
+# sim1(7){1 to nlags} sim2(7){1 to nlags} sim3(7){1 to nlags} sim4(7){1 to nlags} sim5(7){1 to nlags} constant
+equation eqbootus4 sim4(7)
+# sim1(7){1 to nlags} sim2(7){1 to nlags} sim3(7){1 to nlags} sim4(7){1 to nlags} sim5(7){1 to nlags} constant
+equation eqbootus5 sim5(7)
+# sim1(7){1 to nlags} sim2(7){1 to nlags} sim3(7){1 to nlags} sim4(7){1 to nlags} sim5(7){1 to nlags} constant
+
+equation eqbootxm1 sim1(8)
+# sim1(8){1 to nlags} sim2(8){1 to nlags} sim3(8){1 to nlags} sim4(8){1 to nlags} sim5(8){1 to nlags} constant
+equation eqbootxm2 sim2(8)
+# sim1(8){1 to nlags} sim2(8){1 to nlags} sim3(8){1 to nlags} sim4(8){1 to nlags} sim5(8){1 to nlags} constant
+equation eqbootxm3 sim3(8)
+# sim1(8){1 to nlags} sim2(8){1 to nlags} sim3(8){1 to nlags} sim4(8){1 to nlags} sim5(8){1 to nlags} constant
+equation eqbootxm4 sim4(8)
+# sim1(8){1 to nlags} sim2(8){1 to nlags} sim3(8){1 to nlags} sim4(8){1 to nlags} sim5(8){1 to nlags} constant
+equation eqbootxm5 sim5(8)
+# sim1(8){1 to nlags} sim2(8){1 to nlags} sim3(8){1 to nlags} sim4(8){1 to nlags} sim5(8){1 to nlags} constant
+
+group bootsurmodel1 eqbootca1 eqbootch1 eqbootjp1 eqbootno1 eqbootse1 eqbootuk1 eqbootus1 eqbootxm1 
+group bootsurmodel2 eqbootca2 eqbootch2 eqbootjp2 eqbootno2 eqbootse2 eqbootuk2 eqbootus2 eqbootxm2 
+group bootsurmodel3 eqbootca3 eqbootch3 eqbootjp3 eqbootno3 eqbootse3 eqbootuk3 eqbootus3 eqbootxm3 
+group bootsurmodel4 eqbootca4 eqbootch4 eqbootjp4 eqbootno4 eqbootse4 eqbootuk4 eqbootus4 eqbootxm4 
+group bootsurmodel5 eqbootca5 eqbootch5 eqbootjp5 eqbootno5 eqbootse5 eqbootuk5 eqbootus5 eqbootxm5 
+
+group bootvarca eqbootca1 eqbootca2 eqbootca3 eqbootca4 eqbootca5
+group bootvarch eqbootch1 eqbootch2 eqbootch3 eqbootch4 eqbootch5
+group bootvarjp eqbootjp1 eqbootjp2 eqbootjp3 eqbootjp4 eqbootjp5
+group bootvarno eqbootno1 eqbootno2 eqbootno3 eqbootno4 eqbootno5
+group bootvarse eqbootse1 eqbootse2 eqbootse3 eqbootse4 eqbootse5
+group bootvaruk eqbootuk1 eqbootuk2 eqbootuk3 eqbootuk4 eqbootuk5
+group bootvarus eqbootus1 eqbootus2 eqbootus3 eqbootus4 eqbootus5
+group bootvarxm eqbootxm1 eqbootxm2 eqbootxm3 eqbootxm4 eqbootxm5
+
+set sim1(1) stdat end = lgdpmonthca
+set sim2(1) stdat end = lhpmonthca
+set sim3(1) stdat end = lrinvmonthca
+set sim4(1) stdat end = mortmonthca
+set sim5(1) stdat end = ltamonthca
+
+set sim1(2) stdat end = lgdpmonthch
+set sim2(2) stdat end = lhpmonthch
+set sim3(2) stdat end = lrinvmonthch
+set sim4(2) stdat end = mortmonthch
+set sim5(2) stdat end = ltamonthch
+
+set sim1(3) stdat end = lgdpmonthjp
+set sim2(3) stdat end = lhpmonthjp
+set sim3(3) stdat end = lrinvmonthjp
+set sim4(3) stdat end = mortmonthjp
+set sim5(3) stdat end = ltamonthjp
+
+set sim1(4) stdat end = lgdpmonthno
+set sim2(4) stdat end = lhpmonthno
+set sim3(4) stdat end = lrinvmonthno
+set sim4(4) stdat end = mortmonthno
+set sim5(4) stdat end = ltamonthno
+
+set sim1(5) stdat end = lgdpmonthse
+set sim2(5) stdat end = lhpmonthse
+set sim3(5) stdat end = lrinvmonthse
+set sim4(5) stdat end = mortmonthse
+set sim5(5) stdat end = ltamonthse
+
+set sim1(6) stdat end = lgdpmonthuk
+set sim2(6) stdat end = lhpmonthuk
+set sim3(6) stdat end = lrinvmonthuk
+set sim4(6) stdat end = mortmonthuk
+set sim5(6) stdat end = ltamonthuk
+
+set sim1(7) stdat end = lgdpmonthus
+set sim2(7) stdat end = lhpmonthus
+set sim3(7) stdat end = lrinvmonthus
+set sim4(7) stdat end = mortmonthus
+set sim5(7) stdat end = ltamonthus
+
+set sim1(8) stdat end = lgdpmonthxm
+set sim2(8) stdat end = lhpmonthxm
+set sim3(8) stdat end = lrinvmonthxm
+set sim4(8) stdat end = mortmonthxm
+set sim5(8) stdat end = ltamonthxm
+
+smpl start end
+comp tel = 0                ;* counts number of successful identifications
+comp count1 = 0             ;* counts number of draws
+comp count2 = 0
+seed 377349
+infobox(action=define,progress,lower=1,upper=ndraws) 'BOOTSTRAPPING'
+until tel==ndraws
+      {
+
+      comp count1 = count1 + 1
+
+      boot entries start end
+      do i=1,cobs
+         set udraws1(i) = res1(i)(entries(T))
+         set udraws2(i) = res2(i)(entries(T))
+         set udraws3(i) = res3(i)(entries(T))
+         set udraws4(i) = res4(i)(entries(T))
+	 set udraws5(i) = res5(i)(entries(T))
+      end do i
+
+      forecast(paths,from=start,to=end) 5
+      # eqca1 sim1(1)
+      # eqca2 sim2(1)
+      # eqca3 sim3(1)
+      # eqca4 sim4(1)
+      # eqca5 sim5(1)
+      # udraws1(1) udraws2(1) udraws3(1) udraws4(1) udraws5(1)
+
+      forecast(paths,from=start,to=end) 5
+      # eqch1 sim1(2)
+      # eqch2 sim2(2)
+      # eqch3 sim3(2)
+      # eqch4 sim4(2)
+      # eqch5 sim5(2)
+      # udraws1(2) udraws2(2) udraws3(2) udraws4(2) udraws5(2)
+
+      forecast(paths,from=start,to=end) 5
+      # eqjp1 sim1(3)
+      # eqjp2 sim2(3)
+      # eqjp3 sim3(3)
+      # eqjp4 sim4(3)
+      # eqjp5 sim5(3)
+      # udraws1(3) udraws2(3) udraws3(3) udraws4(3) udraws5(3)
+
+      forecast(paths,from=start,to=end) 5
+      # eqno1 sim1(4)
+      # eqno2 sim2(4)
+      # eqno3 sim3(4)
+      # eqno4 sim4(4)
+      # eqno5 sim5(4)
+      # udraws1(4) udraws2(4) udraws3(4) udraws4(4) udraws5(4)
+
+      forecast(paths,from=start,to=end) 5
+      # eqse1 sim1(5)
+      # eqse2 sim2(5)
+      # eqse3 sim3(5)
+      # eqse4 sim4(5)
+      # eqse5 sim5(5)
+      # udraws1(5) udraws2(5) udraws3(5) udraws4(5) udraws5(5)
+
+      forecast(paths,from=start,to=end) 5
+      # equk1 sim1(6)
+      # equk2 sim2(6)
+      # equk3 sim3(6)
+      # equk4 sim4(6)
+      # equk5 sim5(6)
+      # udraws1(6) udraws2(6) udraws3(6) udraws4(6) udraws5(6)
+
+      forecast(paths,from=start,to=end) 5
+      # equs1 sim1(7)
+      # equs2 sim2(7)
+      # equs3 sim3(7)
+      # equs4 sim4(7)
+      # equs5 sim5(7)
+      # udraws1(7) udraws2(7) udraws3(7) udraws4(7) udraws5(7)
+
+      forecast(paths,from=start,to=end) 5
+      # eqxm1 sim1(8)
+      # eqxm2 sim2(8)
+      # eqxm3 sim3(8)
+      # eqxm4 sim4(8)
+      # eqxm5 sim5(8)
+      # udraws1(8) udraws2(8) udraws3(8) udraws4(8) udraws5(8)
+
+      sur(model=bootsurmodel1,residuals=bootres1,noprint,nosigma) * start end
+      sur(model=bootsurmodel2,residuals=bootres2,noprint,nosigma) * start end
+      sur(model=bootsurmodel3,residuals=bootres3,noprint,nosigma) * start end
+      sur(model=bootsurmodel4,residuals=bootres4,noprint,nosigma) * start end
+      sur(model=bootsurmodel5,residuals=bootres5,noprint,nosigma) * start end
+
+      comp testrootca = %modelcompanion(bootvarca)
+      eigen(cvalues=cvca) testrootca
+      comp testrootch = %modelcompanion(bootvarch)
+      eigen(cvalues=cvch) testrootch
+      comp testrootjp = %modelcompanion(bootvarjp)
+      eigen(cvalues=cvjp) testrootjp
+      comp testrootno = %modelcompanion(bootvarno)
+      eigen(cvalues=cvno) testrootno
+
+      comp testrootse = %modelcompanion(bootvarse)
+      eigen(cvalues=cvse) testrootse
+      comp testrootuk = %modelcompanion(bootvaruk)
+      eigen(cvalues=cvuk) testrootuk
+      comp testrootus = %modelcompanion(bootvarus)
+      eigen(cvalues=cvus) testrootus
+      comp testrootxm = %modelcompanion(bootvarxm)
+      eigen(cvalues=cvxm) testrootxm
+
+
+      if %cabs(cvca(1))<=1.0.and.%cabs(cvch(1))<=1.0.and.%cabs(cvjp(1))<=1.0.and.%cabs(cvno(1))<=1.0.and. $
+		%cabs(cvse(1))<=1.0.and.%cabs(cvuk(1))<=1.0.and.%cabs(cvus(1))<=1.0.and.%cabs(cvxm(1))<=1.0
+         {
+
+               comp r10 = %uniform(0,%PI)
+
+               comp Q10(4,4) = cos(r10)
+               comp Q10(4,5) = -sin(r10)
+               comp Q10(5,4) = sin(r10)
+               comp Q10(5,5) = cos(r10)
+
+               comp s3ca = 0
+               comp s4ca = 0
+               comp s3ch = 0
+               comp s4ch = 0
+               comp s3jp = 0
+               comp s4jp = 0
+               comp s3no = 0
+               comp s4no = 0
+               comp s3se = 0
+               comp s4se = 0
+               comp s3uk = 0
+               comp s4uk = 0
+               comp s3us = 0
+               comp s4us = 0
+               comp s3xm = 0
+               comp s4xm = 0
+               vcv(matrix=cca,noprint) start end
+               # bootres1(1) bootres2(1) bootres3(1) bootres4(1) bootres5(1)
+               vcv(matrix=cch,noprint) start end
+               # bootres1(2) bootres2(2) bootres3(2) bootres4(2) bootres5(2)
+               vcv(matrix=cjp,noprint) start end
+               # bootres1(3) bootres2(3) bootres3(3) bootres4(3) bootres5(3)
+               vcv(matrix=cno,noprint) start end
+               # bootres1(4) bootres2(4) bootres3(4) bootres4(4) bootres5(4)
+
+               vcv(matrix=cse,noprint) start end
+               # bootres1(5) bootres2(5) bootres3(5) bootres4(5) bootres5(5)
+               vcv(matrix=cuk,noprint) start end
+               # bootres1(6) bootres2(6) bootres3(6) bootres4(6) bootres5(6)
+               vcv(matrix=cus,noprint) start end
+               # bootres1(7) bootres2(7) bootres3(7) bootres4(7) bootres5(7)
+               vcv(matrix=cxm,noprint) start end
+               # bootres1(8) bootres2(8) bootres3(8) bootres4(8) bootres5(8)
+
+               comp swishca = %decomp(cca)
+               comp swishch = %decomp(cch)
+               comp swishjp = %decomp(cjp)
+               comp swishno = %decomp(cno)
+               comp swishse = %decomp(cse)
+               comp swishuk = %decomp(cuk)
+               comp swishus = %decomp(cus)
+               comp swishxm = %decomp(cxm)
+
+               comp rdcca = swishca*Q10
+               comp rdcch = swishch*Q10
+               comp rdcjp = swishjp*Q10
+               comp rdcno = swishno*Q10
+               comp rdcse = swishse*Q10
+               comp rdcuk = swishuk*Q10
+               comp rdcus = swishus*Q10
+               comp rdcxm = swishxm*Q10
+
+               impulse(noprint,decomp=rdcca,model=bootvarca,results=respca) * nsteps
+               impulse(noprint,decomp=rdcch,model=bootvarch,results=respch) * nsteps
+               impulse(noprint,decomp=rdcjp,model=bootvarjp,results=respjp) * nsteps
+               impulse(noprint,decomp=rdcno,model=bootvarno,results=respno) * nsteps
+               impulse(noprint,decomp=rdcse,model=bootvarse,results=respse) * nsteps
+               impulse(noprint,decomp=rdcuk,model=bootvaruk,results=respuk) * nsteps
+               impulse(noprint,decomp=rdcus,model=bootvarus,results=respus) * nsteps
+               impulse(noprint,decomp=rdcxm,model=bootvarxm,results=respxm) * nsteps
+
+               do k = 1,2
+                     set coca(19) k k = respca(4,4)(k)/respca(5,4)(1)
+                     set coca(20) k k = respca(4,5)(k)/respca(5,5)(1)
+                     set coca(24) k k = respca(5,4)(k)/respca(5,4)(1)
+                     set coca(25) k k = respca(5,5)(k)/respca(5,5)(1)
+
+                     set coch(19) k k = respch(4,4)(k)/respch(5,4)(1)
+                     set coch(20) k k = respch(4,5)(k)/respch(5,5)(1)
+                     set coch(24) k k = respch(5,4)(k)/respch(5,4)(1)
+                     set coch(25) k k = respch(5,5)(k)/respch(5,5)(1)
+
+                     set cojp(19) k k = respjp(4,4)(k)/respjp(5,4)(1)
+                     set cojp(20) k k = respjp(4,5)(k)/respjp(5,5)(1)
+                     set cojp(24) k k = respjp(5,4)(k)/respjp(5,4)(1)
+                     set cojp(25) k k = respjp(5,5)(k)/respjp(5,5)(1)
+
+                     set cono(19) k k = respno(4,4)(k)/respno(5,4)(1)
+                     set cono(20) k k = respno(4,5)(k)/respno(5,5)(1)
+                     set cono(24) k k = respno(5,4)(k)/respno(5,4)(1)
+                     set cono(25) k k = respno(5,5)(k)/respno(5,5)(1)
+
+                     set cose(19) k k = respse(4,4)(k)/respse(5,4)(1)
+                     set cose(20) k k = respse(4,5)(k)/respse(5,5)(1)
+                     set cose(24) k k = respse(5,4)(k)/respse(5,4)(1)
+                     set cose(25) k k = respse(5,5)(k)/respse(5,5)(1)
+
+                     set couk(19) k k = respuk(4,4)(k)/respuk(5,4)(1)
+                     set couk(20) k k = respuk(4,5)(k)/respuk(5,5)(1)
+                     set couk(24) k k = respuk(5,4)(k)/respuk(5,4)(1)
+                     set couk(25) k k = respuk(5,5)(k)/respuk(5,5)(1)
+
+                     set cous(19) k k = respus(4,4)(k)/respus(5,4)(1)
+                     set cous(20) k k = respus(4,5)(k)/respus(5,5)(1)
+                     set cous(24) k k = respus(5,4)(k)/respus(5,4)(1)
+                     set cous(25) k k = respus(5,5)(k)/respus(5,5)(1)
+
+                     set coxm(19) k k = respxm(4,4)(k)/respxm(5,4)(1)
+                     set coxm(20) k k = respxm(4,5)(k)/respxm(5,5)(1)
+                     set coxm(24) k k = respxm(5,4)(k)/respxm(5,4)(1)
+                     set coxm(25) k k = respxm(5,5)(k)/respxm(5,5)(1)
+               end do k
+
+
+               if coca(20)(cors)>=0.and.coca(20)(cors+1)>=0 $
+			   .and.coca(20)(cors+2)>=0.and.coca(20)(cors+3)>=0$
+			   .and.coca(20)(cors+4)>=0.and.coca(20)(cors+5)>=0$
+               .and.coca(19)(cors)<=0.and.coca(19)(cors+1)<=0$
+			   .and.coca(19)(cors+2)<=0.and.coca(19)(cors+3)<=0$
+			   .and.coca(19)(cors+4)<=0.and.coca(19)(cors+5)<=0
+               comp s3ca = 1
+
+               if coca(25)(cors)>=0.and.coca(25)(cors+1)>=0 $
+			   .and.coca(25)(cors+2)>=0.and.coca(25)(cors+3)>=0$
+			   .and.coca(25)(cors+4)>=0.and.coca(25)(cors+5)>=0$
+               .and.coca(24)(cors)<=0.and.coca(24)(cors+1)<=0$
+			   .and.coca(24)(cors+2)<=0.and.coca(24)(cors+3)<=0$
+			   .and.coca(24)(cors+4)<=0.and.coca(24)(cors+5)<=0
+               comp s4ca = 1
+
+               if coch(20)(cors)>=0.and.coch(20)(cors+1)>=0 $
+			   .and.coch(20)(cors+2)>=0.and.coch(20)(cors+3)>=0$
+			   .and.coch(20)(cors+4)>=0.and.coch(20)(cors+5)>=0$
+               .and.coch(19)(cors)<=0.and.coch(19)(cors+1)<=0$
+			   .and.coch(19)(cors+2)<=0.and.coch(19)(cors+3)<=0$
+			   .and.coch(19)(cors+4)<=0.and.coch(19)(cors+5)<=0
+               comp s3ch = 10
+
+               if coch(25)(cors)>=0.and.coch(25)(cors+1)>=0 $
+			   .and.coch(25)(cors+2)>=0.and.coch(25)(cors+3)>=0$
+			   .and.coch(25)(cors+4)>=0.and.coch(25)(cors+5)>=0$
+               .and.coch(24)(cors)<=0.and.coch(24)(cors+1)<=0$
+			   .and.coch(24)(cors+2)<=0.and.coch(24)(cors+3)<=0$
+			   .and.coch(24)(cors+4)<=0.and.coch(24)(cors+5)<=0
+               comp s4ch = 10
+
+               if cojp(20)(cors)>=0.and.cojp(20)(cors+1)>=0 $
+			   .and.cojp(20)(cors+2)>=0.and.cojp(20)(cors+3)>=0$
+			   .and.cojp(20)(cors+4)>=0.and.cojp(20)(cors+5)>=0$
+               .and.cojp(19)(cors)<=0.and.cojp(19)(cors+1)<=0$
+			   .and.cojp(19)(cors+2)<=0.and.cojp(19)(cors+3)<=0$
+			   .and.cojp(19)(cors+4)<=0.and.cojp(19)(cors+5)<=0
+               comp s3jp = 100
+
+               if cojp(25)(cors)>=0.and.cojp(25)(cors+1)>=0 $
+			   .and.cojp(25)(cors+2)>=0.and.cojp(25)(cors+3)>=0$
+			   .and.cojp(25)(cors+4)>=0.and.cojp(25)(cors+5)>=0$
+               .and.cojp(24)(cors)<=0.and.cojp(24)(cors+1)<=0$
+			   .and.cojp(24)(cors+2)<=0.and.cojp(24)(cors+3)<=0$
+			   .and.cojp(24)(cors+4)<=0.and.cojp(24)(cors+5)<=0
+               comp s4jp = 100
+
+               if cono(20)(cors)>=0.and.cono(20)(cors+1)>=0 $
+			   .and.cono(20)(cors+2)>=0.and.cono(20)(cors+3)>=0$
+			   .and.cono(20)(cors+4)>=0.and.cono(20)(cors+5)>=0$
+               .and.cono(19)(cors)<=0.and.cono(19)(cors+1)<=0$
+			   .and.cono(19)(cors+2)<=0.and.cono(19)(cors+3)<=0$
+			   .and.cono(19)(cors+4)<=0.and.cono(19)(cors+5)<=0
+               comp s3no = 1000
+
+               if cono(25)(cors)>=0.and.cono(25)(cors+1)>=0 $
+			   .and.cono(25)(cors+2)>=0.and.cono(25)(cors+3)>=0$
+			   .and.cono(25)(cors+4)>=0.and.cono(25)(cors+5)>=0$
+               .and.cono(24)(cors)<=0.and.cono(24)(cors+1)<=0$
+			   .and.cono(24)(cors+2)<=0.and.cono(24)(cors+3)<=0$
+			   .and.cono(24)(cors+4)<=0.and.cono(24)(cors+5)<=0
+               comp s4no = 1000
+
+               if cose(20)(cors)>=0.and.cose(20)(cors+1)>=0 $
+			   .and.cose(20)(cors+2)>=0.and.cose(20)(cors+3)>=0$
+			   .and.cose(20)(cors+4)>=0.and.cose(20)(cors+5)>=0$
+               .and.cose(19)(cors)<=0.and.cose(19)(cors+1)<=0$
+			   .and.cose(19)(cors+2)<=0.and.cose(19)(cors+3)<=0$
+			   .and.cose(19)(cors+4)<=0.and.cose(19)(cors+5)<=0
+               comp s3se = 10000
+
+               if cose(25)(cors)>=0.and.cose(25)(cors+1)>=0 $
+			   .and.cose(25)(cors+2)>=0.and.cose(25)(cors+3)>=0$
+			   .and.cose(25)(cors+4)>=0.and.cose(25)(cors+5)>=0$
+               .and.cose(24)(cors)<=0.and.cose(24)(cors+1)<=0$
+			   .and.cose(24)(cors+2)<=0.and.cose(24)(cors+3)<=0$
+			   .and.cose(24)(cors+4)<=0.and.cose(24)(cors+5)<=0
+               comp s4se = 10000
+
+               if couk(20)(cors)>=0.and.couk(20)(cors+1)>=0 $
+			   .and.couk(20)(cors+2)>=0.and.couk(20)(cors+3)>=0$
+			   .and.couk(20)(cors+4)>=0.and.couk(20)(cors+5)>=0$
+               .and.couk(19)(cors)<=0.and.couk(19)(cors+1)<=0$
+			   .and.couk(19)(cors+2)<=0.and.couk(19)(cors+3)<=0$
+			   .and.couk(19)(cors+4)<=0.and.couk(19)(cors+5)<=0
+               comp s3uk = 100000
+
+               if couk(25)(cors)>=0.and.couk(25)(cors+1)>=0 $
+			   .and.couk(25)(cors+2)>=0.and.couk(25)(cors+3)>=0$
+			   .and.couk(25)(cors+4)>=0.and.couk(25)(cors+5)>=0$
+               .and.couk(24)(cors)<=0.and.couk(24)(cors+1)<=0$
+			   .and.couk(24)(cors+2)<=0.and.couk(24)(cors+3)<=0$
+			   .and.couk(24)(cors+4)<=0.and.couk(24)(cors+5)<=0
+               comp s4uk = 100000
+
+               if cous(20)(cors)>=0.and.cous(20)(cors+1)>=0 $
+			   .and.cous(20)(cors+2)>=0.and.cous(20)(cors+3)>=0$
+			   .and.cous(20)(cors+4)>=0.and.cous(20)(cors+5)>=0$
+               .and.cous(19)(cors)<=0.and.cous(19)(cors+1)<=0$
+			   .and.cous(19)(cors+2)<=0.and.cous(19)(cors+3)<=0$
+			   .and.cous(19)(cors+4)<=0.and.cous(19)(cors+5)<=0
+               comp s3us = 1000000
+
+               if cous(25)(cors)>=0.and.cous(25)(cors+1)>=0 $
+			   .and.cous(25)(cors+2)>=0.and.cous(25)(cors+3)>=0$
+			   .and.cous(25)(cors+4)>=0.and.cous(25)(cors+5)>=0$
+               .and.cous(24)(cors)<=0.and.cous(24)(cors+1)<=0$
+			   .and.cous(24)(cors+2)<=0.and.cous(24)(cors+3)<=0$
+			   .and.cous(24)(cors+4)<=0.and.cous(24)(cors+5)<=0
+               comp s4us = 1000000
+
+               if coxm(20)(cors)>=0.and.coxm(20)(cors+1)>=0 $
+			   .and.coxm(20)(cors+2)>=0.and.coxm(20)(cors+3)>=0$
+			   .and.coxm(20)(cors+4)>=0.and.coxm(20)(cors+5)>=0$
+               .and.coxm(19)(cors)<=0.and.coxm(19)(cors+1)<=0$
+			   .and.coxm(19)(cors+2)<=0.and.coxm(19)(cors+3)<=0$
+			   .and.coxm(19)(cors+4)<=0.and.coxm(19)(cors+5)<=0
+               comp s3xm = 10000000
+
+               if coxm(25)(cors)>=0.and.coxm(25)(cors+1)>=0 $
+			   .and.coxm(25)(cors+2)>=0.and.coxm(25)(cors+3)>=0$
+			   .and.coxm(25)(cors+4)>=0.and.coxm(25)(cors+5)>=0$
+               .and.coxm(24)(cors)<=0.and.coxm(24)(cors+1)<=0$
+			   .and.coxm(24)(cors+2)<=0.and.coxm(24)(cors+3)<=0$
+			   .and.coxm(24)(cors+4)<=0.and.coxm(24)(cors+5)<=0
+               comp s4xm = 10000000
+
+
+               comp identot_s = s3ca+s4ca+s3ch+s4ch+s3jp+s4jp+s3no+s4no+s3se+s4se+s3uk+s4uk+s3us+s4us+s3xm+s4xm
+
+               if identot_s==11111111
+                  {
+                  comp tel = tel+1
+                  infobox(current=tel)
+
+                  if s3ca==1
+                  {
+                  do rr=1,nsteps
+                     set irca1(rr) tel tel = respca(1,4)(rr)
+                     set irca2(rr) tel tel = respca(2,4)(rr)
+                     set irca3(rr) tel tel = respca(3,4)(rr)
+                     set irca4(rr) tel tel = respca(4,4)(rr)
+		      set irca5(rr) tel tel = respca(5,4)(rr)
+                  end do rr
+                  }
+
+                  if s4ca==1
+                  {
+                  do rr=1,nsteps
+                     set irca1(rr) tel tel = respca(1,5)(rr)
+                     set irca2(rr) tel tel = respca(2,5)(rr)
+                     set irca3(rr) tel tel = respca(3,5)(rr)
+                     set irca4(rr) tel tel = respca(4,5)(rr)
+		      set irca5(rr) tel tel = respca(5,5)(rr)
+                  end do rr
+                  }
+
+                  if s3ch==10
+                  {
+                  do rr=1,nsteps
+                     set irch1(rr) tel tel = respch(1,4)(rr)
+                     set irch2(rr) tel tel = respch(2,4)(rr)
+                     set irch3(rr) tel tel = respch(3,4)(rr)
+                     set irch4(rr) tel tel = respch(4,4)(rr)
+		      set irch5(rr) tel tel = respch(5,4)(rr)
+                  end do rr
+                  }
+
+                  if s4ch==10
+                  {
+                  do rr=1,nsteps
+                     set irch1(rr) tel tel = respch(1,5)(rr)
+                     set irch2(rr) tel tel = respch(2,5)(rr)
+                     set irch3(rr) tel tel = respch(3,5)(rr)
+                     set irch4(rr) tel tel = respch(4,5)(rr)
+		      set irch5(rr) tel tel = respch(5,5)(rr)
+                  end do rr
+                  }
+
+                  if s3jp==100
+                  {
+                  do rr=1,nsteps
+                     set irjp1(rr) tel tel = respjp(1,4)(rr)
+                     set irjp2(rr) tel tel = respjp(2,4)(rr)
+                     set irjp3(rr) tel tel = respjp(3,4)(rr)
+                     set irjp4(rr) tel tel = respjp(4,4)(rr)
+		      set irjp5(rr) tel tel = respjp(5,4)(rr)
+                  end do rr
+                  }
+
+                  if s4jp==100
+                  {
+                  do rr=1,nsteps
+                     set irjp1(rr) tel tel = respjp(1,5)(rr)
+                     set irjp2(rr) tel tel = respjp(2,5)(rr)
+                     set irjp3(rr) tel tel = respjp(3,5)(rr)
+                     set irjp4(rr) tel tel = respjp(4,5)(rr)
+		      set irjp5(rr) tel tel = respjp(5,5)(rr)
+                  end do rr
+                  }
+
+                  if s3no==1000
+                  {
+                  do rr=1,nsteps
+                     set irno1(rr) tel tel = respno(1,4)(rr)
+                     set irno2(rr) tel tel = respno(2,4)(rr)
+                     set irno3(rr) tel tel = respno(3,4)(rr)
+                     set irno4(rr) tel tel = respno(4,4)(rr)
+		      set irno5(rr) tel tel = respno(5,4)(rr)
+                  end do rr
+                  }
+
+                  if s4no==1000
+                  {
+                  do rr=1,nsteps
+                     set irno1(rr) tel tel = respno(1,5)(rr)
+                     set irno2(rr) tel tel = respno(2,5)(rr)
+                     set irno3(rr) tel tel = respno(3,5)(rr)
+                     set irno4(rr) tel tel = respno(4,5)(rr)
+		      set irno5(rr) tel tel = respno(5,5)(rr)
+                  end do rr
+                  }
+
+                  if s3se==10000
+                  {
+                  do rr=1,nsteps
+                     set irse1(rr) tel tel = respse(1,4)(rr)
+                     set irse2(rr) tel tel = respse(2,4)(rr)
+                     set irse3(rr) tel tel = respse(3,4)(rr)
+                     set irse4(rr) tel tel = respse(4,4)(rr)
+		      set irse5(rr) tel tel = respse(5,4)(rr)
+                  end do rr
+                  }
+
+                  if s4se==10000
+                  {
+                  do rr=1,nsteps
+                     set irse1(rr) tel tel = respse(1,5)(rr)
+                     set irse2(rr) tel tel = respse(2,5)(rr)
+                     set irse3(rr) tel tel = respse(3,5)(rr)
+                     set irse4(rr) tel tel = respse(4,5)(rr)
+		      set irse5(rr) tel tel = respse(5,5)(rr)
+                  end do rr
+                  }
+
+                  if s3uk==100000
+                  {
+                  do rr=1,nsteps
+                     set iruk1(rr) tel tel = respuk(1,4)(rr)
+                     set iruk2(rr) tel tel = respuk(2,4)(rr)
+                     set iruk3(rr) tel tel = respuk(3,4)(rr)
+                     set iruk4(rr) tel tel = respuk(4,4)(rr)
+		      set iruk5(rr) tel tel = respuk(5,4)(rr)
+                  end do rr
+                  }
+
+                  if s4uk==100000
+                  {
+                  do rr=1,nsteps
+                     set iruk1(rr) tel tel = respuk(1,5)(rr)
+                     set iruk2(rr) tel tel = respuk(2,5)(rr)
+                     set iruk3(rr) tel tel = respuk(3,5)(rr)
+                     set iruk4(rr) tel tel = respuk(4,5)(rr)
+		      set iruk5(rr) tel tel = respuk(5,5)(rr)
+                  end do rr
+                  }
+
+                  if s3us==1000000
+                  {
+                  do rr=1,nsteps
+                     set irus1(rr) tel tel = respus(1,4)(rr)
+                     set irus2(rr) tel tel = respus(2,4)(rr)
+                     set irus3(rr) tel tel = respus(3,4)(rr)
+                     set irus4(rr) tel tel = respus(4,4)(rr)
+		      set irus5(rr) tel tel = respus(5,4)(rr)
+                  end do rr
+                  }
+
+                  if s4us==1000000
+                  {
+                  do rr=1,nsteps
+                     set irus1(rr) tel tel = respus(1,5)(rr)
+                     set irus2(rr) tel tel = respus(2,5)(rr)
+                     set irus3(rr) tel tel = respus(3,5)(rr)
+                     set irus4(rr) tel tel = respus(4,5)(rr)
+		      set irus5(rr) tel tel = respus(5,5)(rr)
+                  end do rr
+                  }
+
+                  if s3xm==10000000
+                  {
+                  do rr=1,nsteps
+                     set irxm1(rr) tel tel = respxm(1,4)(rr)
+                     set irxm2(rr) tel tel = respxm(2,4)(rr)
+                     set irxm3(rr) tel tel = respxm(3,4)(rr)
+                     set irxm4(rr) tel tel = respxm(4,4)(rr)
+		      set irxm5(rr) tel tel = respxm(5,4)(rr)
+                  end do rr
+                  }
+
+                  if s4xm==10000000
+                  {
+                  do rr=1,nsteps
+                     set irxm1(rr) tel tel = respxm(1,5)(rr)
+                     set irxm2(rr) tel tel = respxm(2,5)(rr)
+                     set irxm3(rr) tel tel = respxm(3,5)(rr)
+                     set irxm4(rr) tel tel = respxm(4,5)(rr)
+		      set irxm5(rr) tel tel = respxm(5,5)(rr)
+                  end do rr
+                  }
+                  }
+         }
+       }
+end until
+infobox(action=remove)
+disp ' Number of full identifications: ' tel
+disp ' Number of draws: ' count1
+
+smpl 1 tel
+do i = 1,tel
+   set testerca i i = irca5(1)(i)
+   if testerca(i)>0
+      set vtsca i i = 1
+   else
+      set vtsca i i = -1
+
+   set testerch i i = irch5(1)(i)
+   if testerch(i)>0
+      set vtsch i i = 1
+   else
+      set vtsch i i = -1
+
+   set testerjp i i = irjp5(1)(i)
+   if testerjp(i)>0
+      set vtsjp i i = 1
+   else
+      set vtsjp i i = -1
+
+   set testerno i i = irno5(1)(i)
+   if testerno(i)>0
+      set vtsno i i = 1
+   else
+      set vtsno i i = -1
+
+   set testerse i i = irse5(1)(i)
+   if testerse(i)>0
+      set vtsse i i = 1
+   else
+      set vtsse i i = -1
+
+   set testeruk i i = iruk5(1)(i)
+   if testeruk(i)>0
+      set vtsuk i i = 1
+   else
+      set vtsuk i i = -1
+
+   set testerus i i = irus5(1)(i)
+   if testerus(i)>0
+      set vtsus i i = 1
+   else
+      set vtsus i i = -1
+
+   set testerxm i i = irxm5(1)(i)
+   if testerxm(i)>0
+      set vtsxm i i = 1
+   else
+      set vtsxm i i = -1
+
+end do i
+
+smpl 1 tel
+do j = 1,nsteps
+   set irca1(j) = irca1(j)*vtsca
+   set irca2(j) = irca2(j)*vtsca
+   set irca3(j) = irca3(j)*vtsca
+   set irca4(j) = irca4(j)*vtsca
+   set irca5(j) = irca5(j)*vtsca
+
+   set irch1(j) = irch1(j)*vtsch
+   set irch2(j) = irch2(j)*vtsch
+   set irch3(j) = irch3(j)*vtsch
+   set irch4(j) = irch4(j)*vtsch
+   set irch5(j) = irch5(j)*vtsch
+
+   set irjp1(j) = irjp1(j)*vtsjp
+   set irjp2(j) = irjp2(j)*vtsjp
+   set irjp3(j) = irjp3(j)*vtsjp
+   set irjp4(j) = irjp4(j)*vtsjp
+   set irjp5(j) = irjp5(j)*vtsjp
+
+   set irno1(j) = irno1(j)*vtsno
+   set irno2(j) = irno2(j)*vtsno
+   set irno3(j) = irno3(j)*vtsno
+   set irno4(j) = irno4(j)*vtsno
+   set irno5(j) = irno5(j)*vtsno
+
+   set irse1(j) = irse1(j)*vtsse
+   set irse2(j) = irse2(j)*vtsse
+   set irse3(j) = irse3(j)*vtsse
+   set irse4(j) = irse4(j)*vtsse
+   set irse5(j) = irse5(j)*vtsse
+
+   set iruk1(j) = iruk1(j)*vtsuk
+   set iruk2(j) = iruk2(j)*vtsuk
+   set iruk3(j) = iruk3(j)*vtsuk
+   set iruk4(j) = iruk4(j)*vtsuk
+   set iruk5(j) = iruk5(j)*vtsuk
+
+   set irus1(j) = irus1(j)*vtsus
+   set irus2(j) = irus2(j)*vtsus
+   set irus3(j) = irus3(j)*vtsus
+   set irus4(j) = irus4(j)*vtsus
+   set irus5(j) = irus5(j)*vtsus
+
+   set irxm1(j) = irxm1(j)*vtsxm
+   set irxm2(j) = irxm2(j)*vtsxm
+   set irxm3(j) = irxm3(j)*vtsxm
+   set irxm4(j) = irxm4(j)*vtsxm
+   set irxm5(j) = irxm5(j)*vtsxm
+end do j
+
+******************************************
+* Mean group estimations and differences *
+******************************************
+
+dec vector[series] irMG1(nsteps) irMG2(nsteps) irMG3(nsteps) irMG4(nsteps) irMG5(nsteps)
+
+smpl 1 tel
+do j = 1,nsteps
+   set irMG1(j) =(irca1(j)+irch1(j)+irjp1(j)+irno1(j)+irse1(j)+iruk1(j)+irus1(j)+irxm1(j))/8
+   set irMG2(j) =(irca2(j)+irch2(j)+irjp2(j)+irno2(j)+irse2(j)+iruk2(j)+irus2(j)+irxm2(j))/8
+   set irMG3(j) =(irca3(j)+irch3(j)+irjp3(j)+irno3(j)+irse3(j)+iruk3(j)+irus3(j)+irxm3(j))/8
+   set irMG4(j) =(irca4(j)+irch4(j)+irjp4(j)+irno4(j)+irse4(j)+iruk4(j)+irus4(j)+irxm4(j))/8
+   set irMG5(j) =(irca5(j)+irch5(j)+irjp5(j)+irno5(j)+irse5(j)+iruk5(j)+irus5(j)+irxm5(j))/8
+end do j
+
+**************************
+* impulse responses      *
+**************************
+
+smpl 1 tel
+do j = 1,nsteps
+   order irMG1(j) 1 ndraws
+   set gemMG1 j j = irMG1(j)(ndraws*bmed/100)
+   set uppMG1 j j = irMG1(j)(ndraws*bupp/100)
+   set lowMG1 j j = irMG1(j)(ndraws*blow/100)
+   set dec1mg1 j j = irMG1(j)(ndraws*10/100)
+   set dec2mg1 j j = irMG1(j)(ndraws*20/100)
+   set dec3mg1 j j = irMG1(j)(ndraws*30/100)
+   set dec4mg1 j j = irMG1(j)(ndraws*40/100)
+   set dec6mg1 j j = irMG1(j)(ndraws*60/100)
+   set dec7mg1 j j = irMG1(j)(ndraws*70/100)
+   set dec8mg1 j j = irMG1(j)(ndraws*80/100)
+   set dec9mg1 j j = irMG1(j)(ndraws*90/100)   
+
+   order irMG2(j) 1 ndraws
+   set gemMG2 j j = irMG2(j)(ndraws*bmed/100)
+   set uppMG2 j j = irMG2(j)(ndraws*bupp/100)
+   set lowMG2 j j = irMG2(j)(ndraws*blow/100)
+   set dec1mg2 j j = irMG2(j)(ndraws*10/100)
+   set dec2mg2 j j = irMG2(j)(ndraws*20/100)
+   set dec3mg2 j j = irMG2(j)(ndraws*30/100)
+   set dec4mg2 j j = irMG2(j)(ndraws*40/100)
+   set dec6mg2 j j = irMG2(j)(ndraws*60/100)
+   set dec7mg2 j j = irMG2(j)(ndraws*70/100)
+   set dec8mg2 j j = irMG2(j)(ndraws*80/100)
+   set dec9mg2 j j = irMG2(j)(ndraws*90/100)
+
+   order irMG3(j) 1 ndraws
+   set gemMG3 j j = irMG3(j)(ndraws*bmed/100)
+   set uppMG3 j j = irMG3(j)(ndraws*bupp/100)
+   set lowMG3 j j = irMG3(j)(ndraws*blow/100)
+   set dec1mg3 j j = irMG3(j)(ndraws*10/100)
+   set dec2mg3 j j = irMG3(j)(ndraws*20/100)
+   set dec3mg3 j j = irMG3(j)(ndraws*30/100)
+   set dec4mg3 j j = irMG3(j)(ndraws*40/100)
+   set dec6mg3 j j = irMG3(j)(ndraws*60/100)
+   set dec7mg3 j j = irMG3(j)(ndraws*70/100)
+   set dec8mg3 j j = irMG3(j)(ndraws*80/100)
+   set dec9mg3 j j = irMG3(j)(ndraws*90/100)
+   
+   order irMG4(j) 1 ndraws
+   set gemMG4 j j = irMG4(j)(ndraws*bmed/100)
+   set uppMG4 j j = irMG4(j)(ndraws*bupp/100)
+   set lowMG4 j j = irMG4(j)(ndraws*blow/100)
+   set dec1mg4 j j = irMG4(j)(ndraws*10/100)
+   set dec2mg4 j j = irMG4(j)(ndraws*20/100)
+   set dec3mg4 j j = irMG4(j)(ndraws*30/100)
+   set dec4mg4 j j = irMG4(j)(ndraws*40/100)
+   set dec6mg4 j j = irMG4(j)(ndraws*60/100)
+   set dec7mg4 j j = irMG4(j)(ndraws*70/100)
+   set dec8mg4 j j = irMG4(j)(ndraws*80/100)
+   set dec9mg4 j j = irMG4(j)(ndraws*90/100)
+ 
+
+	order irMG5(j) 1 ndraws
+   set gemMG5 j j = irMG5(j)(ndraws*bmed/100)
+   set uppMG5 j j = irMG5(j)(ndraws*bupp/100)
+   set lowMG5 j j = irMG5(j)(ndraws*blow/100)
+   set dec1mg5 j j = irMG5(j)(ndraws*10/100)
+   set dec2mg5 j j = irMG5(j)(ndraws*20/100)
+   set dec3mg5 j j = irMG5(j)(ndraws*30/100)
+   set dec4mg5 j j = irMG5(j)(ndraws*40/100)
+   set dec6mg5 j j = irMG5(j)(ndraws*60/100)
+   set dec7mg5 j j = irMG5(j)(ndraws*70/100)
+   set dec8mg5 j j = irMG5(j)(ndraws*80/100)
+   set dec9mg5 j j = irMG5(j)(ndraws*90/100)
+   
+   
+   order irca1(j) 1 ndraws
+   set gemca1 j j = irca1(j)(ndraws*bmed/100)
+   set uppca1 j j = irca1(j)(ndraws*bupp/100)
+   set lowca1 j j = irca1(j)(ndraws*blow/100)
+   order irca2(j) 1 ndraws
+   set gemca2 j j = irca2(j)(ndraws*bmed/100)
+   set uppca2 j j = irca2(j)(ndraws*bupp/100)
+   set lowca2 j j = irca2(j)(ndraws*blow/100)
+   order irca3(j) 1 ndraws
+   set gemca3 j j = irca3(j)(ndraws*bmed/100)
+   set uppca3 j j = irca3(j)(ndraws*bupp/100)
+   set lowca3 j j = irca3(j)(ndraws*blow/100)
+   order irca4(j) 1 ndraws
+   set gemca4 j j = irca4(j)(ndraws*bmed/100)
+   set uppca4 j j = irca4(j)(ndraws*bupp/100)
+   set lowca4 j j = irca4(j)(ndraws*blow/100)
+   order irca5(j) 1 ndraws
+   set gemca5 j j = irca5(j)(ndraws*bmed/100)
+   set uppca5 j j = irca5(j)(ndraws*bupp/100)
+   set lowca5 j j = irca5(j)(ndraws*blow/100)
+   order irch1(j) 1 ndraws
+   set gemch1 j j = irch1(j)(ndraws*bmed/100)
+   set uppch1 j j = irch1(j)(ndraws*bupp/100)
+   set lowch1 j j = irch1(j)(ndraws*blow/100)
+   order irch2(j) 1 ndraws
+   set gemch2 j j = irch2(j)(ndraws*bmed/100)
+   set uppch2 j j = irch2(j)(ndraws*bupp/100)
+   set lowch2 j j = irch2(j)(ndraws*blow/100)
+   order irch3(j) 1 ndraws
+   set gemch3 j j = irch3(j)(ndraws*bmed/100)
+   set uppch3 j j = irch3(j)(ndraws*bupp/100)
+   set lowch3 j j = irch3(j)(ndraws*blow/100)
+   order irch4(j) 1 ndraws
+   set gemch4 j j = irch4(j)(ndraws*bmed/100)
+   set uppch4 j j = irch4(j)(ndraws*bupp/100)
+   set lowch4 j j = irch4(j)(ndraws*blow/100)
+   order irch5(j) 1 ndraws
+   set gemch5 j j = irch5(j)(ndraws*bmed/100)
+   set uppch5 j j = irch5(j)(ndraws*bupp/100)
+   set lowch5 j j = irch5(j)(ndraws*blow/100)
+   order irjp1(j) 1 ndraws
+   set gemjp1 j j = irjp1(j)(ndraws*bmed/100)
+   set uppjp1 j j = irjp1(j)(ndraws*bupp/100)
+   set lowjp1 j j = irjp1(j)(ndraws*blow/100)
+   order irjp2(j) 1 ndraws
+   set gemjp2 j j = irjp2(j)(ndraws*bmed/100)
+   set uppjp2 j j = irjp2(j)(ndraws*bupp/100)
+   set lowjp2 j j = irjp2(j)(ndraws*blow/100)
+   order irjp3(j) 1 ndraws
+   set gemjp3 j j = irjp3(j)(ndraws*bmed/100)
+   set uppjp3 j j = irjp3(j)(ndraws*bupp/100)
+   set lowjp3 j j = irjp3(j)(ndraws*blow/100)
+   order irjp4(j) 1 ndraws
+   set gemjp4 j j = irjp4(j)(ndraws*bmed/100)
+   set uppjp4 j j = irjp4(j)(ndraws*bupp/100)
+   set lowjp4 j j = irjp4(j)(ndraws*blow/100)
+   order irjp5(j) 1 ndraws
+   set gemjp5 j j = irjp5(j)(ndraws*bmed/100)
+   set uppjp5 j j = irjp5(j)(ndraws*bupp/100)
+   set lowjp5 j j = irjp5(j)(ndraws*blow/100)
+   order irno1(j) 1 ndraws
+   set gemno1 j j = irno1(j)(ndraws*bmed/100)
+   set uppno1 j j = irno1(j)(ndraws*bupp/100)
+   set lowno1 j j = irno1(j)(ndraws*blow/100)
+   order irno2(j) 1 ndraws
+   set gemno2 j j = irno2(j)(ndraws*bmed/100)
+   set uppno2 j j = irno2(j)(ndraws*bupp/100)
+   set lowno2 j j = irno2(j)(ndraws*blow/100)
+   order irno3(j) 1 ndraws
+   set gemno3 j j = irno3(j)(ndraws*bmed/100)
+   set uppno3 j j = irno3(j)(ndraws*bupp/100)
+   set lowno3 j j = irno3(j)(ndraws*blow/100)
+   order irno4(j) 1 ndraws
+   set gemno4 j j = irno4(j)(ndraws*bmed/100)
+   set uppno4 j j = irno4(j)(ndraws*bupp/100)
+   set lowno4 j j = irno4(j)(ndraws*blow/100)
+   order irno5(j) 1 ndraws
+   set gemno5 j j = irno5(j)(ndraws*bmed/100)
+   set uppno5 j j = irno5(j)(ndraws*bupp/100)
+   set lowno5 j j = irno5(j)(ndraws*blow/100)
+   order irse1(j) 1 ndraws
+   set gemse1 j j = irse1(j)(ndraws*bmed/100)
+   set uppse1 j j = irse1(j)(ndraws*bupp/100)
+   set lowse1 j j = irse1(j)(ndraws*blow/100)
+   order irse2(j) 1 ndraws
+   set gemse2 j j = irse2(j)(ndraws*bmed/100)
+   set uppse2 j j = irse2(j)(ndraws*bupp/100)
+   set lowse2 j j = irse2(j)(ndraws*blow/100)
+   order irse3(j) 1 ndraws
+   set gemse3 j j = irse3(j)(ndraws*bmed/100)
+   set uppse3 j j = irse3(j)(ndraws*bupp/100)
+   set lowse3 j j = irse3(j)(ndraws*blow/100)
+   order irse4(j) 1 ndraws
+   set gemse4 j j = irse4(j)(ndraws*bmed/100)
+   set uppse4 j j = irse4(j)(ndraws*bupp/100)
+   set lowse4 j j = irse4(j)(ndraws*blow/100)
+   order irse5(j) 1 ndraws
+   set gemse5 j j = irse5(j)(ndraws*bmed/100)
+   set uppse5 j j = irse5(j)(ndraws*bupp/100)
+   set lowse5 j j = irse5(j)(ndraws*blow/100)
+   order iruk1(j) 1 ndraws
+   set gemuk1 j j = iruk1(j)(ndraws*bmed/100)
+   set uppuk1 j j = iruk1(j)(ndraws*bupp/100)
+   set lowuk1 j j = iruk1(j)(ndraws*blow/100)
+   order iruk2(j) 1 ndraws
+   set gemuk2 j j = iruk2(j)(ndraws*bmed/100)
+   set uppuk2 j j = iruk2(j)(ndraws*bupp/100)
+   set lowuk2 j j = iruk2(j)(ndraws*blow/100)
+   order iruk3(j) 1 ndraws
+   set gemuk3 j j = iruk3(j)(ndraws*bmed/100)
+   set uppuk3 j j = iruk3(j)(ndraws*bupp/100)
+   set lowuk3 j j = iruk3(j)(ndraws*blow/100)
+   order iruk4(j) 1 ndraws
+   set gemuk4 j j = iruk4(j)(ndraws*bmed/100)
+   set uppuk4 j j = iruk4(j)(ndraws*bupp/100)
+   set lowuk4 j j = iruk4(j)(ndraws*blow/100)
+   order iruk5(j) 1 ndraws
+   set gemuk5 j j = iruk5(j)(ndraws*bmed/100)
+   set uppuk5 j j = iruk5(j)(ndraws*bupp/100)
+   set lowuk5 j j = iruk5(j)(ndraws*blow/100)
+   order irus1(j) 1 ndraws
+   set gemus1 j j = irus1(j)(ndraws*bmed/100)
+   set uppus1 j j = irus1(j)(ndraws*bupp/100)
+   set lowus1 j j = irus1(j)(ndraws*blow/100)
+   order irus2(j) 1 ndraws
+   set gemus2 j j = irus2(j)(ndraws*bmed/100)
+   set uppus2 j j = irus2(j)(ndraws*bupp/100)
+   set lowus2 j j = irus2(j)(ndraws*blow/100)
+   order irus3(j) 1 ndraws
+   set gemus3 j j = irus3(j)(ndraws*bmed/100)
+   set uppus3 j j = irus3(j)(ndraws*bupp/100)
+   set lowus3 j j = irus3(j)(ndraws*blow/100)
+   order irus4(j) 1 ndraws
+   set gemus4 j j = irus4(j)(ndraws*bmed/100)
+   set uppus4 j j = irus4(j)(ndraws*bupp/100)
+   set lowus4 j j = irus4(j)(ndraws*blow/100)
+   order irus5(j) 1 ndraws
+   set gemus5 j j = irus5(j)(ndraws*bmed/100)
+   set uppus5 j j = irus5(j)(ndraws*bupp/100)
+   set lowus5 j j = irus5(j)(ndraws*blow/100)
+   order irxm1(j) 1 ndraws
+   set gemxm1 j j = irxm1(j)(ndraws*bmed/100)
+   set uppxm1 j j = irxm1(j)(ndraws*bupp/100)
+   set lowxm1 j j = irxm1(j)(ndraws*blow/100)
+   order irxm2(j) 1 ndraws
+   set gemxm2 j j = irxm2(j)(ndraws*bmed/100)
+   set uppxm2 j j = irxm2(j)(ndraws*bupp/100)
+   set lowxm2 j j = irxm2(j)(ndraws*blow/100)
+   order irxm3(j) 1 ndraws
+   set gemxm3 j j = irxm3(j)(ndraws*bmed/100)
+   set uppxm3 j j = irxm3(j)(ndraws*bupp/100)
+   set lowxm3 j j = irxm3(j)(ndraws*blow/100)
+   order irxm4(j) 1 ndraws
+   set gemxm4 j j = irxm4(j)(ndraws*bmed/100)
+   set uppxm4 j j = irxm4(j)(ndraws*bupp/100)
+   set lowxm4 j j = irxm4(j)(ndraws*blow/100)
+   order irxm5(j) 1 ndraws
+   set gemxm5 j j = irxm5(j)(ndraws*bmed/100)
+   set uppxm5 j j = irxm5(j)(ndraws*bupp/100)
+   set lowxm5 j j = irxm5(j)(ndraws*blow/100)
+end do j
+
+copy(for=xls,org=obs,dates) / gemMG1 uppMG1 lowMG1 gemMG2 uppMG2 lowMG2 gemMG3 uppMG3 lowMG3 gemMG4 uppMG4 lowMG4 gemMG5 uppMG5 lowMG5 $
+                              gemca1 uppca1 lowca1 gemca2 uppca2 lowca2 gemca3 uppca3 lowca3 gemca4 uppca4 lowca4 gemca5 uppca5 lowca5 $
+                              gemch1 uppch1 lowch1 gemch2 uppch2 lowch2 gemch3 uppch3 lowch3 gemch4 uppch4 lowch4 gemch5 uppch5 lowch5 $
+                              gemjp1 uppjp1 lowjp1 gemjp2 uppjp2 lowjp2 gemjp3 uppjp3 lowjp3 gemjp4 uppjp4 lowjp4 gemjp5 uppjp5 lowjp5 $
+                              gemno1 uppno1 lowno1 gemno2 uppno2 lowno2 gemno3 uppno3 lowno3 gemno4 uppno4 lowno4 gemno5 uppno5 lowno5 $
+                              gemse1 uppse1 lowse1 gemse2 uppse2 lowse2 gemse3 uppse3 lowse3 gemse4 uppse4 lowse4 gemse5 uppse5 lowse5 $
+                              gemuk1 uppuk1 lowuk1 gemuk2 uppuk2 lowuk2 gemuk3 uppuk3 lowuk3 gemuk4 uppuk4 lowuk4 gemuk5 uppuk5 lowuk5 $
+                              gemus1 uppus1 lowus1 gemus2 uppus2 lowus2 gemus3 uppus3 lowus3 gemus4 uppus4 lowus4 gemus5 uppus5 lowus5 $
+                              gemxm1 uppxm1 lowxm1 gemxm2 uppxm2 lowxm2 gemxm3 uppxm3 lowxm3 gemxm4 uppxm4 lowxm4 gemxm5 uppxm5 lowxm5 $
+							  dec1mg1 dec2mg1 dec3mg1 dec4mg1 dec6mg1 dec7mg1 dec8mg1 dec9mg1 $
+							  dec1mg2 dec2mg2 dec3mg2 dec4mg2 dec6mg2 dec7mg2 dec8mg2 dec9mg2 $
+							  dec1mg3 dec2mg3 dec3mg3 dec4mg3 dec6mg3 dec7mg3 dec8mg3 dec9mg3 $
+							  dec1mg5 dec2mg5 dec3mg5 dec4mg5 dec6mg5 dec7mg5 dec8mg5 dec9mg5 $
+							  dec1mg4 dec2mg4 dec3mg4 dec4mg4 dec6mg4 dec7mg4 dec8mg4 dec9mg4
