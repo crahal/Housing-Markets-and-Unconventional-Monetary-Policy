@@ -1,6 +1,6 @@
 # Housing-Markets-and-Unconventional-Monetary-Policy
 
-[![Generic badge](https://img.shields.io/badge/Software-RATS-red.svg)](https://shields.io/)  [![Generic badge](https://img.shields.io/badge/License-MIT-blue.svg)](https://shields.io/)  [![Generic badge](https://img.shields.io/badge/Maintained-Yes-green.svg)](https://shields.io/)
+[![Generic badge](https://img.shields.io/badge/Software-RATS-red.svg)](https://shields.io/)  [![Generic badge](https://img.shields.io/badge/License-MIT-blue.svg)](https://shields.io/)  [![Generic badge](https://img.shields.io/badge/Maintained-No-green.svg)](https://shields.io/)
 
 Replication Files for Rahal (2016), 'Housing Markets and Unconventional Monetary Policy' in JoHE. 
 
